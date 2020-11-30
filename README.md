@@ -5,13 +5,13 @@ Simple function for generating affine geometric augmentations on images and (pos
 
 - **augment_affine()**: Generates multiple affine variations of an input image, while adjusting any existing bounding boxes within it.
 
-      Main parameters:
-      - **bboxes**: List of bounding boxes inside the image (can be None)
-      - **how_many**: how many augmentations to generate per image (number)
-      - **range_scale**: range of values for scaling (percentage)
-      - **range_translation**: range of values for xy translation (in pixels)
-      - **range_rotation**: range of values for rotation (in degrees)
-      - **range_sheer**: range of values for sheer (in degrees)
+Main parameters:
+- **bboxes**: List of bounding boxes inside the image (can be None)
+- **how_many**: how many augmentations to generate per image (number)
+- **range_scale**: range of values for scaling (percentage)
+- **range_translation**: range of values for xy translation (in pixels)
+- **range_rotation**: range of values for rotation (in degrees)
+- **range_sheer**: range of values for sheer (in degrees)
         
 
 # Contents:
