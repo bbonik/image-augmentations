@@ -3,7 +3,7 @@ Simple function for generating affine geometric augmentations on images and (pos
 
 ![overview](images/overview.jpg "overview")
 
-- **augment_affine()**: Generates multiple affine variations of an input image, while adjusting any existing bounding boxes within it.
+**augment_affine()**: Generates multiple affine variations of an input image, while adjusting any existing bounding boxes within it.
 
 Main parameters:
 - **bboxes**: List of bounding boxes inside the image (can be None)
