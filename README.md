@@ -12,6 +12,7 @@ Good:
 Not so good:
 - Large / very large datasets, where saving the augmented images is very expensive (because the dataset becomes huge). In these cases, all modern Deep Learning frameworks (i.e. Tensorflow, Pytorch etc.) offer "on the fly" augmentations, which is a better choice. 
 
+# Function
 **augment_affine()**: Generates multiple affine variations of an input image, while adjusting any existing bounding boxes within it.
 
 Main parameters:
