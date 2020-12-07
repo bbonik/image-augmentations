@@ -1,6 +1,8 @@
 # image-augmentations
 Simple function for generating affine geometric augmentations on images and (possible) bounding boxes within them. It can be used to augment image datasets and generate as many variations from a single image, as you want, while adjusting any existing bounding boxes accordingly.
 
+![overview](images/overview.jpg "overview")
+
 # Use cases
 Good: 
 - Small datasets, where you would like to add augmentations and maintain control of what exactly happens to the augmented images. 
@@ -9,11 +11,6 @@ Good:
 
 Not so good:
 - Large / very large datasets, where saving the augmented images is very expensive (because the dataset becomes huge). In these cases, all modern Deep Learning frameworks (i.e. Tensorflow, Pytorch etc.) offer "on the fly" augmentations, which is a better choice. 
-
-
-If you alredy have a large dataset, with lots of examples per class, then adding more augmentations us
-
-![overview](images/overview.jpg "overview")
 
 **augment_affine()**: Generates multiple affine variations of an input image, while adjusting any existing bounding boxes within it.
 
