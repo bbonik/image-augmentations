@@ -9,11 +9,59 @@ handling bounding boxes.
 
 import imageio
 import copy
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from skimage.transform import warp, AffineTransform
 from skimage.exposure import equalize_adapthist
+
+
+
+
+def flip_image(image, direction='lr'):
+    # direction='lr' -> flip left right
+    # direction='ud' -> flip up down
+
+    image_flipped = image.copy()
+    
+    if direction == 'ud':
+        image_flipped = np.flipud(image_flipped)
+    else:
+        image_flipped = np.fliplr(image_flipped)
+
+    return image_flipped
+
+
+
+def flip_bboxes(ls_bboxes, image_width, image_height, direction='lr'):
+    # direction='lr' -> flip left right
+    # direction='ud' -> flip up down
+
+    ls_bboxes_flipped = []
+    
+    for bbox in ls_bboxes:
+        
+        if direction == 'ud':
+            ls_bboxes_flipped.append(
+                (
+                    bbox[0],
+                    image_height - (bbox[1] + bbox[3]),  # height-y_down_right
+                    bbox[2], 
+                    bbox[3]
+                    )
+                )
+        else:
+            ls_bboxes_flipped.append(
+                (
+                    image_width - (bbox[0] + bbox[2]),  # width-x_down_right
+                    bbox[1], 
+                    bbox[2], 
+                    bbox[3]
+                    )
+                )
+    
+    return ls_bboxes_flipped
 
 
 
@@ -29,6 +77,8 @@ def augment_affine(
         range_translation=(-100, 100),  # in pixels
         range_rotation=(-45, 45),  # in degrees
         range_sheer=(-45, 45),  # in degrees
+        flip_lr = None,
+        flip_ud = None,
         enhance = False,
         bbox_truncate = True,
         bbox_discard_thr = 0.75,
@@ -65,26 +115,36 @@ def augment_affine(
         Minimum and maximum range of possible rotations in degrees
     range_sheer: tuple of int
         Minimum and maximum range of possible rotations in degrees
+    flip_lr: string or None
+        None: no left-right flipping is applied.
+        'all': all images are flipped left-to-right (doubles number of images)
+        'random': images are flipped left-to-right randomly
+    flip_ud: string or None
+        None: no up-down flipping is applied.
+        'all': all images are flipped up-to-down (doubles number of images)
+        'random': images are flipped up-to-down randomly
     enhance: boolean
         Use or not CLAHE enhancement (Contrast Limited Adaptive Histogram 
         Equalization)
     bbox_truncate: bool
         Whether or not to truncate bounding boxes within image boundaries.
     bbox_discard_thr: float [0,1]
-        If the ratio of the surface of a new bounding box (after image 
-        augmentation), over the surface of the original bounding box, is less
-        than bbox_discard_thr, then the new bounding box is discarded. This 
-        parameter helps to filter out any bounding boxes that lie mostly 
-        outsite the image boundaries. 
+        Helps to discard any new bounding boxes that are located mostly 
+        outside the image boundaries, due to the augmentations. If the ratio 
+        of the surface of a new bounding box (after image augmentation), over 
+        the surface of the original bounding box, is less than 
+        bbox_discard_thr, then the new bounding box is discarded (i.e. object 
+        lies mostly outside the new image). Values closer to 1 are more strict
+        whereas values closer to 0 are more permissive. 
     verbose: boolean
         Show visualizations and details or not.
     
     OUTPUT
     ------
-    Dictionary containing:
+    dcionary containing:
         Augmented images.
         Transformed bounding boxes.
-        Transformation matrices used for each augmentation. 
+        Details about each augmentation. 
         
     '''
     
@@ -102,7 +162,12 @@ def augment_affine(
 
     # show original image
     if verbose is True:
-        print('\nAugmenting', image_filename.split('/')[-1])
+        print('\nAugmenting', image_filename.split('/')[-1], end='')
+        print(' [x', end='')
+        print(how_many, end='')
+        if flip_lr=='all': print(' x2', end='')
+        if flip_ud=='all': print(' x2', end='')
+        print(']')
         plt.figure()
         plt.imshow(image, vmin=0, vmax=255)
         plt.title('Original')
@@ -142,7 +207,8 @@ def augment_affine(
                 [x_down_right, y_down_right], 
                 [x_up_left, y_down_right]
                 ])
-        
+     
+    #------------------------------------------------------- get random values
         
     # set random seed
     np.random.seed(random_seed)  
@@ -173,18 +239,19 @@ def augment_affine(
         size=how_many
         )
     
+    #-------------------------------------------- process all image variations
     
-    # initiate output dictionary
-    dict_augmentations = {}
-    dict_augmentations['Images'] = []
-    dict_augmentations['Matrices'] = []
-    dict_augmentations['bboxes'] = []
+    # initiate output dcionary
+    dc_augm = {}
+    dc_augm['Images'] = []
+    dc_augm['bboxes'] = []
+    dc_augm['Transformations'] = []
     
     
     # for all images
     for i in range(how_many):
         
-        dict_augmentations['bboxes'].append([])
+        dc_augm['bboxes'].append([])
     
         # configure an affine transform based on the random values
         tform = AffineTransform(
@@ -204,12 +271,22 @@ def augment_affine(
         image_transformed *= 255
         image_transformed = image_transformed.astype(np.uint8)
         
-        # add to the list
-        dict_augmentations['Images'].append(image_transformed)
-        dict_augmentations['Matrices'].append(tform.params)
+        # add transforamtions to the dictionary 
+        dc_augm['Images'].append(image_transformed)
         
+        dc_transf = {}
+        dc_transf['Scale'] = param_scale[i]
+        dc_transf['Translation'] = param_trans[i]
+        dc_transf['Rotation'] = np.degrees(param_rot[i])
+        dc_transf['Sheer'] = np.degrees(param_sheer[i])
+        dc_transf['Flip_lr'] = False
+        dc_transf['Flip_ud'] = False
+        dc_transf['Matrix'] = tform.params
         
-        # transform bboxes to the new coordinates of the warped image
+        dc_augm['Transformations'].append(dc_transf)
+          
+    #------------- transform bboxes to the new coordinates of the warped image
+    
         if bboxes is not None:
             
             ls_bboxes_coord_new = copy.deepcopy(ls_bboxes_coord)
@@ -252,13 +329,14 @@ def augment_affine(
                     ls_bboxes_coord_new[b][3][1]
                     )
                 
+    #--------------------------------------- truncate bbox to image boundaries
+                
+                flag_truncated = False
+                
                 if bbox_truncate is True:
-                    # truncating bboxes to the image boundaries
                     
                     im_width = image_transformed.shape[1]
                     im_height = image_transformed.shape[0]
-                    
-                    flag_truncated = False
                     
                     if x_up_left < 0: 
                         x_up_left = 0
@@ -288,30 +366,22 @@ def augment_affine(
                         y_down_right = im_height - 1
                         flag_truncated = True
 
-                    width_new = x_down_right - x_up_left
-                    height_new = y_down_right - y_up_left
-                    width_old = bboxes[b][2]
-                    height_old = bboxes[b][3]
+                
+                width_new = x_down_right - x_up_left
+                height_new = y_down_right - y_up_left
+                width_old = bboxes[b][2]
+                height_old = bboxes[b][3]
+                
+                # estimate how much the bbox area has changed due to cropping
+                bbox_surface_ratio = ((width_new * height_new) / 
+                                     (width_old * height_old * param_scale[i]))
+
+    #------------------------------------------------------ store the new bbox
+                
+                if ((flag_truncated == False) | 
+                    (bbox_surface_ratio > bbox_discard_thr)):
                     
-                    # estimatge how much the bbox surface has changed
-                    bbox_surface_ratio = ((width_new * height_new) / 
-                                          (width_old * height_old))
-
-                    if (flag_truncated == False) | (bbox_surface_ratio > bbox_discard_thr):
-                            dict_augmentations['bboxes'][i].append(
-                                (
-                                    x_up_left,
-                                    y_up_left, 
-                                    width_new, 
-                                    height_new
-                                    )
-                                )
-
-                else:
-                    # return new bboxes, even if they lie outside the image
-                    width_new = x_down_right - x_up_left
-                    height_new = y_down_right - y_up_left
-                    dict_augmentations['bboxes'][i].append(
+                    dc_augm['bboxes'][i].append(
                         (
                             x_up_left,
                             y_up_left, 
@@ -320,14 +390,143 @@ def augment_affine(
                             )
                         )
 
+    #-------------------------------------------------- flip images left-right
+    
+    if flip_lr is not None:
+        
+        if flip_lr == 'random':
+            
+            for i in range(len(dc_augm['Images'])):
+            
+                if random.choice([True, False]):  # random boolean
+                    
+                    dc_augm['Transformations'][i]['Flip_lr'] = True
+            
+                    dc_augm['Images'][i] = flip_image(
+                        image=dc_augm['Images'][i],
+                        direction='lr'
+                        )
+                    
+                    if bboxes is not None: 
+                        dc_augm['bboxes'][i] = flip_bboxes(
+                            ls_bboxes=dc_augm['bboxes'][i],
+                            image_width=dc_augm['Images'][i].shape[1],
+                            image_height=dc_augm['Images'][i].shape[0],
+                            direction='lr'
+                            )
+                    
+        else:  # flip_lr == 'all':
+            
+            ls_flipped_images = []
+            ls_flipped_bboxes = []
+            dc_augm['Transformations'].extend(
+                copy.deepcopy(
+                    dc_augm['Transformations']
+                    )
+                )
+            
+            for i in range(len(dc_augm['Images'])):
+                    
+                dc_augm['Transformations'][i + how_many]['Flip_lr'] = True
+        
+                ls_flipped_images.append(
+                    flip_image(
+                        image=dc_augm['Images'][i],
+                        direction='lr'
+                        )
+                    )
+                
+                ls_flipped_bboxes.append(
+                    flip_bboxes(
+                        ls_bboxes=dc_augm['bboxes'][i],
+                        image_width=dc_augm['Images'][i].shape[1],
+                        image_height=dc_augm['Images'][i].shape[0],
+                        direction='lr'
+                        )
+                    )
+            
+            dc_augm['Images'].extend(ls_flipped_images)
+            dc_augm['bboxes'].extend(ls_flipped_bboxes)
 
-        if verbose is True:
-            print('\nTransformation for augmentation', i)
-            print('Scale:',param_scale[i])
-            print('Translation_x:',param_trans[i,0], 
-                  'Translation_y:',param_trans[i,1])
-            print('Rotation:',param_rot[i])
-            print('Sheer:',param_sheer[i])
+    #----------------------------------------------------- flip images up-down
+    
+    if flip_ud is not None:
+        
+        if flip_ud == 'random':
+            
+            for i in range(len(dc_augm['Images'])):
+            
+                if random.choice([True, False]):  # random boolean
+                    
+                    dc_augm['Transformations'][i]['Flip_ud'] = True
+            
+                    dc_augm['Images'][i] = flip_image(
+                        image=dc_augm['Images'][i],
+                        direction='ud'
+                        )
+                    
+                    if bboxes is not None: 
+                        dc_augm['bboxes'][i] = flip_bboxes(
+                            ls_bboxes=dc_augm['bboxes'][i],
+                            image_width=dc_augm['Images'][i].shape[1],
+                            image_height=dc_augm['Images'][i].shape[0],
+                            direction='ud'
+                            )
+                    
+        else:  # flip_ud == 'all':
+            
+            ls_flipped_images = []
+            ls_flipped_bboxes = []
+            dc_augm['Transformations'].extend(
+                copy.deepcopy(
+                    dc_augm['Transformations']
+                    )
+                )
+            
+            for i in range(len(dc_augm['Images'])):
+                    
+                dc_augm['Transformations'][i + how_many]['Flip_ud'] = True
+        
+                ls_flipped_images.append(
+                    flip_image(
+                        image=dc_augm['Images'][i],
+                        direction='ud'
+                        )
+                    )
+                
+                ls_flipped_bboxes.append(
+                    flip_bboxes(
+                        ls_bboxes=dc_augm['bboxes'][i],
+                        image_width=dc_augm['Images'][i].shape[1],
+                        image_height=dc_augm['Images'][i].shape[0],
+                        direction='ud'
+                        )
+                    )
+            
+            dc_augm['Images'].extend(ls_flipped_images)
+            dc_augm['bboxes'].extend(ls_flipped_bboxes)
+                    
+    #------------------------------------------------- visualize augmentations
+
+    if verbose is True:
+        
+        for i,image_transformed in enumerate(dc_augm['Images']):
+        
+            print('\nTransformation for augmentation', i+1)
+            print('Scale:', 
+                  dc_augm['Transformations'][i]['Scale'])
+            print('Translation_x:', 
+                  dc_augm['Transformations'][i]['Translation'][0])
+            print('Translation_y:', 
+                  dc_augm['Transformations'][i]['Translation'][1])
+            print('Rotation:', 
+                  dc_augm['Transformations'][i]['Rotation'])
+            print('Sheer:', 
+                  dc_augm['Transformations'][i]['Sheer'])
+            print('Flip left->right: ', 
+                  dc_augm['Transformations'][i]['Flip_lr'])
+            print('Flip up->down: ', 
+                  dc_augm['Transformations'][i]['Flip_ud'])
             
             plt.figure()
             plt.imshow(image_transformed, interpolation='bilinear')
@@ -336,7 +535,7 @@ def augment_affine(
             plt.axis('off')
             
             if bboxes is not None:
-                for bbox in dict_augmentations['bboxes'][i]:
+                for bbox in dc_augm['bboxes'][i]:
                     plt.gca().add_patch(
                     Rectangle(
                         xy=(bbox[0],bbox[1]),
@@ -350,6 +549,7 @@ def augment_affine(
             plt.show()
     
     
+    if bboxes is None: del dc_augm['bboxes']
     
-    return dict_augmentations
+    return dc_augm
 

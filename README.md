@@ -22,6 +22,8 @@ Main parameters:
 - **range_translation**: range of values for xy translation (in pixels)
 - **range_rotation**: range of values for rotation (in degrees)
 - **range_sheer**: range of values for sheer (in degrees)
+- **flip_lr**: flip images left->right, all of them or randomly
+- **flip_ud**: flip images up->down, all of them or randomly
         
 
 # Contents:

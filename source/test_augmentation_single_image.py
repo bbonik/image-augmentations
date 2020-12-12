@@ -40,6 +40,7 @@ if __name__=="__main__":
     # getting augmented images
     image_augm = augment_affine(
         image_filename=filename,
+        # bboxes = None,
         bboxes = [
             (x1[0], y1[0], w1, h1), 
             (x2[0], y2[0], w2, h2), 
@@ -47,10 +48,12 @@ if __name__=="__main__":
             ],
         how_many=10,
         random_seed=0,
-        range_scale=(0.4, 1.3),  # percentage
+        range_scale=(0.5, 1.5),  # percentage
         range_translation=(-30, 30),  # in pixels
         range_rotation=(-30, 30),  # in degrees
         range_sheer=(-30, 30),  # in degrees
+        flip_lr='random',
+        flip_ud=None,
         enhance=False,
         bbox_truncate = True,
         bbox_discard_thr = 0.85,  # percentage
